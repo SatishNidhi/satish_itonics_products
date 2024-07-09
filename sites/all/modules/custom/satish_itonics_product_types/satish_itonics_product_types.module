@@ -1,0 +1,242 @@
+<?php
+
+
+/**
+ * Implements hook_menu().
+ */
+function satish_itonics_product_types_menu()
+{
+  $items = array();
+
+  $items['admin/product-types'] = array(
+    'title' => 'Product Types',
+    'page callback' => 'satish_itonics_product_types_data',
+    'access arguments' => array('access content for this module'),
+    'type' => MENU_NORMAL_ITEM, // Use MENU_CALLBACK for AJAX or non-page callbacks
+  );
+
+  // Add type form
+  $items['admin/product-types/add'] = array(
+    'title' => 'Add Product Type',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('satish_itonics_product_types_form'),
+    'access arguments' => array('administer types'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  // Delete type callback (define before edit)
+  $items['admin/product-types/delete/%'] = array(
+    'title' => 'Delete Type',
+    'page callback' => 'satish_itonics_product_types_delete',
+    'page arguments' => array(3),
+    'access arguments' => array('administer types'),
+    'type' => MENU_CALLBACK,
+  );
+
+  // Edit type form (keep as it is but after delete)
+  $items['admin/product-types/%'] = array(
+    'title' => 'Edit Type',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('satish_itonics_product_types_form', 2),
+    'access arguments' => array('administer types'),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function satish_itonics_product_types_permission()
+{
+  return array(
+    'access content for this module' => array(
+      'title' => t('Access content for this module'),
+    ),
+  );
+}
+
+/**
+ * Form callback: Add/Edit Type form.
+ */
+function satish_itonics_product_types_form($form, &$form_state, $tid = NULL) {
+  $type = array();
+  if (isset($tid)) {
+    $type = satish_itonics_product_types_load($tid);
+  }
+
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Name'),
+    '#required' => TRUE,
+    '#default_value' => isset($type->name) ? $type->name : '',
+    '#attributes' => array('class' => array('form-control'), 'style' => 'height: 40px;'),
+  );
+
+  $form['status'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Active'),
+    '#default_value' => isset($type->status) ? $type->status : 1,
+    '#attributes' => array('class' => array('form-control')),
+  );
+
+  $form['tid'] = array(
+    '#type' => 'value',
+    '#value' => $tid,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+    '#attributes' => array('class' => array('btn', 'btn-primary')),
+    '#prefix' => '<div class="form-actions">',
+    '#suffix' => '</div>',
+  );
+
+  return $form;
+}
+
+function satish_itonics_product_types_form_submit($form, &$form_state)
+{
+  $tid = $form_state['values']['tid'];
+  $type = array(
+    'name' => $form_state['values']['name'],
+    'status' => $form_state['values']['status'],
+    'updated' => REQUEST_TIME,
+  );
+
+  if (isset($tid)) {
+    // Update existing type
+    db_update('product_types')
+      ->fields($type)
+      ->condition('tid', $tid)
+      ->execute();
+    drupal_set_message(t('Product Type updated successfully.'));
+  } else {
+    // Insert new type
+    $type['created'] = REQUEST_TIME;
+    db_insert('product_types')
+      ->fields($type)
+      ->execute();
+    drupal_set_message(t('Product Type added successfully.'));
+  }
+
+  // Redirect to types list after saving
+  drupal_goto('admin/product-types');
+}
+
+/**
+ * Load a Product type by tid.
+ */
+function satish_itonics_product_types_load($tid)
+{
+  return db_select('product_types', 't')
+    ->fields('t')
+    ->condition('tid', $tid)
+    ->execute()
+    ->fetchObject();
+}
+
+/**
+ * View callback - Displays product types table.
+ */
+
+function satish_itonics_product_types_data()
+{
+  // Set Title.
+  drupal_set_title(t('Product Types'));
+
+  $output = '';
+  $header = array(
+    array('data' => t('Id'), 'field' => 'tid'),
+    array('data' => t('Product Type'), 'field' => 'name'),
+    array('data' => t('Status'), 'field' => 'status'),
+    array('data' => t('Actions'), 'colspan' => 2),
+  );
+
+  // Error logging starts here.
+  error_log(print_r($header, TRUE));
+
+  $query = db_select("product_types", "p");
+  $query->fields('p', array('tid', 'name', 'status'));
+  $query = $query->extend('TableSort')->extend('PagerDefault')->limit(50);
+  $query->orderByHeader($header);
+  $result = $query->execute();
+
+  $rows = array();
+  while ($data = $result->fetchObject()) {
+
+    $status = $data->status == 1 ? 'Active' : 'Inactive';
+    $edit_link = l('Edit', 'admin/product-types/' . $data->tid);
+    $delete_link = l('Delete', 'admin/product-types/delete/' . $data->tid, array('attributes' => array('onclick' => 'return confirm("Are you sure you want to delete this type?");')));
+
+
+    $rows[] = array(
+      $data->tid,
+      $data->name,
+      $status,
+      $edit_link,
+      $delete_link,
+    );
+  };
+
+  // Add button for adding a new product type
+  $add_link = l('Add Type', 'admin/product-types/add');
+  $output .= '<p>' . $add_link . '</p>';
+
+  $output .= theme(
+    'table',
+    array(
+      'header' => $header,
+      'rows' => $rows,
+      'attributes' => array(),
+      'sticky' => TRUE,
+      'caption' => '',
+      'colgroups' => array(),
+      'empty' => t("No Records Found."),
+    )
+  ) . theme('pager');
+  return $output;
+}
+
+
+
+/**
+ * Delete a product type by tid.
+ */
+function satish_itonics_product_types_delete($tid)
+{
+  // Ensure $tid is numeric and valid
+  if (!is_numeric($tid)) {
+    drupal_set_message(t('Invalid type ID.'), 'error');
+    return;
+  }
+
+  // Check if the type has associated categories
+  $has_categories = db_select('product_category', 'c')
+    ->fields('c', ['type_id'])
+    ->condition('type_id', $tid)
+    ->countQuery()
+    ->execute()
+    ->fetchField();
+
+  if ($has_categories > 0) {
+    drupal_set_message(t('This type cannot be deleted because it has associated categories.'), 'error');
+  }else{
+  // Delete the product type
+  $deleted_type = db_delete('product_types')
+    ->condition('tid', $tid)
+    ->execute();
+
+  if ($deleted_type) {
+    drupal_set_message(t('Type deleted successfully.'));
+  } else {
+    drupal_set_message(t('Failed to delete type.'), 'error');
+  }
+  }
+
+  // Redirect to types list after deletion
+  drupal_goto('admin/product-types');
+}
+

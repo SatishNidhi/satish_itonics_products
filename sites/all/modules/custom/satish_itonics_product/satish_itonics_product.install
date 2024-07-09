@@ -1,0 +1,102 @@
+<?php
+/**
+ * Implements hook_schema().
+ */
+function satish_itonics_product_schema() {
+  $schema['product'] = array(
+    'description' => 'Stores information about products.',
+    'fields' => array(
+      'pid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique ID.',
+      ),
+      'title' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'description' => 'Title of the product.',
+      ),
+      'image' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+        'description' => 'Path to the product image.',
+      ),
+      'summary' => array(
+        'type' => 'text',
+        'not null' => FALSE,
+        'size' => 'big',
+        'description' => 'Summary of the product.',
+      ),
+      'description' => array(
+        'type' => 'text',
+        'not null' => FALSE,
+        'size' => 'big',
+        'description' => 'Description of the product (supports rich text).',
+      ),
+      'type' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Type ID of the product (foreign key to product_type).',
+      ),
+      'owner_email' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'description' => 'Email of the owner of the product.',
+      ),
+      'expiry_date' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Expiry date of the product.',
+      ),
+      'created' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Timestamp when product was created.',
+      ),
+      'updated' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Timestamp when product was last updated.',
+      ),
+    ),
+    'primary key' => array('pid'),
+    'foreign keys' => array(
+      'type_id' => array(
+        'table' => 'product_type',
+        'columns' => array('tid'),
+      ),
+    ),
+  );
+
+  $schema['product_category_map'] = array(
+    'description' => 'Stores categories associated with products.',
+    'fields' => array(
+      'pid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Product ID (foreign key to product table).',
+      ),
+      'cid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Category ID (foreign key to product_category table).',
+      ),
+    ),
+    'foreign keys' => array(
+      'product' => array(
+        'table' => 'product',
+        'columns' => array('pid'),
+      ),
+      'category' => array(
+        'table' => 'product_category',
+        'columns' => array('cid'),
+      ),
+    ),
+  );
+
+  return $schema;
+}

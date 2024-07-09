@@ -1,0 +1,52 @@
+<?php
+/**
+ * Implements hook_schema().
+ */
+function satish_itonics_product_category_schema() {
+  $schema['product_category'] = array(
+    'fields' => array(
+      'cid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique ID.',
+      ),
+      'name' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+        'description' => 'Name of the product type.',
+      ),
+      'type_id' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'description' => 'Product Type id',
+      ),
+      'status' => array(
+        'type' => 'int',
+        'default' => 1,
+        'not null' => FALSE,
+        'description' => 'Status: 1 = Active, 0 = Inactive',
+      ),
+      'created' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Timestamp when type was created.',
+      ),
+      'updated' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'description' => 'Timestamp when type was last updated.',
+      ),
+    ),
+    'primary key' => array('cid'),
+    'foreign keys' => array(
+      'type_id' => array(
+        'table' => 'product_type',
+        'columns' => array('tid'),
+      ),
+    ),
+  );
+
+  return $schema;
+}

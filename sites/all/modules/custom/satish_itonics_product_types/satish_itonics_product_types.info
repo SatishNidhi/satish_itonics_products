@@ -1,0 +1,5 @@
+name = "Satish Itonics Product Types"
+description = "Module to manage types for products in ITONICS."
+package = Custom
+core = 7.x
+dependencies[] = views

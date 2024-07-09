@@ -1,0 +1,645 @@
+<?php
+
+
+/**
+ * Implements hook_menu().
+ */
+function satish_itonics_product_menu()
+{
+  $items = array();
+
+  // List all products
+  $items['admin/products'] = array(
+    'title' => 'Products',
+    'page callback' => 'satish_itonics_products_data',
+    'access arguments' => array('access content for this module'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  // Add product form
+  $items['admin/products/add'] = array(
+    'title' => 'Add Product',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('satish_itonics_product_form'),
+    'access arguments' => array('administer products'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  // Delete product callback
+  $items['admin/products/delete/%'] = array(
+    'title' => 'Delete Product',
+    'page callback' => 'satish_itonics_product_delete',
+    'page arguments' => array(3),
+    'access arguments' => array('administer products'),
+    'type' => MENU_CALLBACK,
+  );
+
+  // Edit product form
+  $items['admin/products/%'] = array(
+    'title' => 'Edit Product',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('satish_itonics_product_form', 2),
+    'access arguments' => array('administer products'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['admin/products/view/%'] = array(
+    'title' => 'View Product',
+    'page callback' => 'satish_itonics_product_view',
+    'page arguments' => array(3), // %pid will be passed as argument
+    'access arguments' => array('access content for this module'),
+    'type' => MENU_CALLBACK,
+  );
+
+
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function satish_itonics_product_permission()
+{
+  return array(
+    'access content for this module' => array(
+      'title' => t('Access content for this module'),
+    ),
+    'administer products' => array(
+      'title' => t('Administer products'),
+    ),
+  );
+}
+
+
+/**
+ * Form callback: Add/Edit Product form.
+ */
+function satish_itonics_product_form($form, &$form_state, $pid = NULL)
+{
+  $product = array();
+  if (isset($pid)) {
+    $product = satish_itonics_product_load($pid);
+  }
+
+  $form['title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Title'),
+    '#required' => TRUE,
+    '#default_value' => isset($product->title) ? $product->title : '',
+    '#size' => 60,
+    '#maxlength' => 255,
+    '#attributes' => array('class' => array('form-control'), 'style' => 'height: 40px;'),
+
+  );
+
+  $form['image'] = array(
+    '#type' => 'file',
+    '#title' => t('Image'),
+    '#description' => t('Upload an image for the product.'),
+    '#attributes' => array('class' => array('form-file')),
+  );
+
+  if (!empty($product->image)) {
+    $form['image_preview'] = array(
+      '#theme' => 'image_style',
+      '#style_name' => 'thumbnail',
+      '#path' => $product->image,
+      '#alt' => t('Product Image'),
+    );
+
+    // Store the current image path in a hidden field
+    $form['image_current'] = array(
+      '#type' => 'hidden',
+      '#value' => $product->image,
+    );
+  }
+
+  if (!empty($product->image)) {
+    $form['current_image_info'] = array(
+      '#markup' => '<p>Current Image: ' . $product->image . '</p>',
+    );
+  }
+
+  $form['summary'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Summary'),
+    '#default_value' => isset($product->summary) ? $product->summary : '',
+    '#rows' => 5,
+    '#cols' => 60,
+  );
+
+  $form['description'] = array(
+    '#type' => 'text_format',
+    '#title' => t('Description'),
+    '#default_value' => isset($product->description) ? $product->description : '',
+    '#format' => 'filtered_html',
+    '#rows' => 10,
+    '#cols' => 60,
+    '#format' => 'filtered_html',
+    '#rows' => 10,
+  );
+
+  // Get the product types options
+
+  $form['type'] = array(
+    '#type' => 'select',
+    '#title' => t('Product Type'),
+    '#options' => satish_itonics_product_types_options(),
+    '#default_value' => isset($product->type) ? $product->type : '',
+    '#empty_option' => t('- Select Product Type -'),
+    '#attributes' => array('class' => array('chosen-select')),
+    '#required' => TRUE,
+    '#ajax' => array(
+      'callback' => 'update_categories_dropdown_callback',
+      'wrapper' => 'categories-wrapper',
+    ),
+
+
+  );
+
+  // Get the product categories options
+  if (isset($product->type)) {
+    $product_categories_options = satish_itonics_product_categories_options_by_type($product->type);
+  } else {
+    $product_categories_options = satish_itonics_product_categories_options();
+  }
+
+  $form['categories'] = array(
+    '#type' => 'select',
+    '#title' => t('Categories'),
+    '#options' => $product_categories_options,
+    '#empty_option' => t('- Select Product categorys -'),
+    '#default_value' => isset($product->pid) ? satish_itonics_product_category_ids($product->pid) : array(),
+    '#multiple' => TRUE,
+    '#required' => TRUE,
+    '#attributes' => array('class' => array('chosen-select')),
+    '#prefix' => '<div id="categories-wrapper">',
+    '#suffix' => '</div>',
+  );
+
+  $form['owner_email'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Owner Email'),
+    '#required' => TRUE,
+    '#default_value' => isset($product->owner_email) ? $product->owner_email : '',
+    '#size' => 60,
+    '#attributes' => array('class' => array('form-control'), 'style' => 'height: 40px;'),
+    '#maxlength' => 255,
+    '#element_validate' => array('email_field_validate'),
+
+  );
+
+
+  $form['expiry_date'] = array(
+    '#type' => 'date_popup',
+    '#default_value' => isset($product->expiry_date) ? format_date($product->expiry_date, 'custom', 'Y-m-d') : '',
+    '#date_format' => 'Y-m-d',
+    '#required' => TRUE,
+    '#description' => t('Please select Expiry date'),
+    '#size' => 60,
+    '#attributes' => array('class' => array('form-control'), 'style' => 'height: 40px;'),
+    '#datepicker_options' => array(
+      'minDate' => date('Y-m-d')
+  ),
+
+
+  );
+
+  $form['pid'] = array(
+    '#type' => 'value',
+    '#value' => $pid,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+
+
+  return $form;
+}
+
+
+/**
+ * Custom validation function for email field.
+ */
+function email_field_validate($element, &$form_state, $form)
+{
+  $value = $element['#value'];
+  if (!valid_email_address($value)) {
+    form_error($element, t('The email address %mail is not valid.', array('%mail' => $value)));
+  }
+}
+
+/**
+ * AJAX callback function to update categories dropdown options.
+ */
+function update_categories_dropdown_callback($form, &$form_state)
+{
+  // Get the selected product type from the form state values
+  $product_type = $form_state['values']['type'];
+
+  // Update categories options based on the selected product type
+  $categories_options = satish_itonics_product_categories_options_by_type($product_type);
+
+  $form['categories']['#options'] = $categories_options;
+  return $form['categories'];
+}
+
+//  function to retrieve categories based on product type
+function satish_itonics_product_categories_options_by_type($product_type)
+{
+  // Initialize an empty array to store options
+  $options = array();
+
+  $query = db_select('product_category', 'c')
+    ->fields('c', array('cid', 'name'))
+    ->condition('c.status', 1) // Filter by status
+    ->condition('c.type_id', $product_type) // Filter by product type
+    ->execute();
+
+  foreach ($query as $category) {
+    $options[$category->cid] = $category->name;
+  }
+
+  return $options;
+}
+
+function satish_itonics_product_category_ids($product_id)
+{
+  $category_ids = array();
+
+  // Query the product_category_map table to fetch category IDs.
+  $query = db_select('product_category_map', 'pcm')
+    ->fields('pcm', array('cid'))
+    ->condition('pcm.pid', $product_id)
+    ->execute();
+
+  // Fetch category IDs into an array.
+  foreach ($query as $row) {
+    $category_ids[] = $row->cid;
+  }
+
+  return $category_ids;
+}
+
+/**
+ * Submit callback for Product form.
+ */
+
+function satish_itonics_product_form_submit($form, &$form_state)
+{
+  // Get product ID (pid) from form state values
+  $pid = isset($form_state['values']['pid']) ? $form_state['values']['pid'] : NULL;
+
+  // Prepare product data
+  $product = array(
+    'title' => $form_state['values']['title'],
+    'summary' => $form_state['values']['summary'],
+    'description' => $form_state['values']['description']['value'],
+    'type' => $form_state['values']['type'],
+    'owner_email' => $form_state['values']['owner_email'],
+    'expiry_date' => strtotime($form_state['values']['expiry_date']),
+    'updated' => REQUEST_TIME,
+  );
+
+  // Handle file upload
+  $file = file_save_upload('image', array(
+    'file_validate_is_image' => array(), // Ensure it's an image file
+  ), 'public://product-images/', FILE_EXISTS_RENAME);
+
+  if ($file) {
+    // File uploaded successfully
+    // Move the uploaded file to the destination directory with a unique filename
+    $file = file_move($file, 'public://product-images/', FILE_EXISTS_RENAME);
+    if ($file) {
+      // File moved successfully
+      $product['image'] = $file->uri; // Store URI in database
+
+      // Check if the file URI already exists in file_managed table
+      $existing_file = db_query("SELECT fid FROM {file_managed} WHERE uri = :uri", array(':uri' => $file->uri))->fetchField();
+      if (!$existing_file) {
+        // Insert file record into file_managed table
+        $file_record = array(
+          'uid' => 1, // Replace with appropriate user ID
+          'filename' => $file->filename,
+          'uri' => $file->uri,
+          'filemime' => $file->filemime,
+          'filesize' => $file->filesize,
+          'status' => FILE_STATUS_PERMANENT, // Optional: Adjust file status as needed
+          'timestamp' => REQUEST_TIME,
+        );
+        drupal_write_record('file_managed', $file_record);
+      }
+    } else {
+      // Error handling if file move fails
+      drupal_set_message(t('Failed to move uploaded file.'), 'error');
+      return;
+    }
+  } elseif (!empty($form_state['values']['image_current'])) {
+    // Use the existing image if no new image is uploaded
+    $product['image'] = $form_state['values']['image_current'];
+  }
+
+  // Update or insert product into database
+  if ($pid) {
+    // Update existing product
+    $product['pid'] = $pid;
+    db_update('product')
+      ->fields($product)
+      ->condition('pid', $pid)
+      ->execute();
+    drupal_set_message(t('Product updated successfully.'));
+  } else {
+    // Insert new product
+    $product['created'] = REQUEST_TIME;
+    $pid = db_insert('product')
+      ->fields($product)
+      ->execute();
+    drupal_set_message(t('Product added successfully.'));
+  }
+
+  // Handle categories
+  $categories = $form_state['values']['categories'];
+  if (!empty($categories)) {
+    // Remove existing entries for this product
+    db_delete('product_category_map')
+      ->condition('pid', $pid)
+      ->execute();
+
+    // Insert new entries
+    foreach ($categories as $cid) {
+      db_insert('product_category_map')
+        ->fields(array(
+          'pid' => $pid,
+          'cid' => $cid,
+        ))
+        ->execute();
+    }
+  }
+
+  // Redirect to products list after saving
+  drupal_goto('admin/products');
+}
+
+
+/**
+ * Load a Product by pid.
+ */
+function satish_itonics_product_load($pid)
+{
+  return db_select('product', 'p')
+    ->fields('p')
+    ->condition('p.pid', $pid)
+    ->execute()
+    ->fetchObject();
+}
+
+/**
+ * View callback - Displays products table.
+ */
+function satish_itonics_products_data()
+{
+  // Set Title
+  drupal_set_title(t('Products'));
+
+  $output = '';
+
+  // Define table headers
+  $header = array(
+    array('data' => t('ID'), 'field' => 'pid'),
+    array('data' => t('Title'), 'field' => 'title'),
+    array('data' => t('Image'), 'field' => 'image'),
+    array('data' => t('Summary'), 'field' => 'summary'),
+    array('data' => t('Type'), 'field' => 'type_name'),
+    array('data' => t('Categories'), 'field' => 'category_names'),
+    array('data' => t('Owner Email'), 'field' => 'owner_email'),
+    array('data' => t('Expiry Date'), 'field' => 'expiry_date'),
+    array('data' => t('Actions'), 'colspan' => 2),
+  );
+
+  // Initialize the query object for the 'product' table.
+$query = db_select('product', 'p')
+->fields('p', array('pid', 'title', 'image', 'summary', 'type', 'owner_email', 'expiry_date'));
+
+// Extend the query object with TableSort and PagerDefault for sorting and paging.
+$query->extend('TableSort')->extend('PagerDefault')->limit(50);
+
+// Left join with 'product_types' table and alias its 'name' field as 'type_name'.
+$query->leftJoin('product_types', 'pt', 'p.type = pt.tid');
+$query->addField('pt', 'name', 'type_name');
+
+// Left join with 'product_category_map' to get all mapped categories for each product.
+$query->leftJoin('product_category_map', 'pcm', 'p.pid = pcm.pid');
+
+// Left join with 'product_category' to get the category names.
+$query->leftJoin('product_category', 'pc', 'pcm.cid = pc.cid');
+
+// Group by p.pid to avoid duplicate product entries.
+$query->groupBy('p.pid');
+
+// Add the GROUP_CONCAT expression to concatenate category names.
+$query->addExpression('GROUP_CONCAT(pc.name SEPARATOR \', \')', 'category_names');
+
+// Order the results by p.pid.
+$query->orderBy('p.pid');
+
+// Execute the query.
+$result = $query->execute();
+
+  // Build rows for the table
+  $rows = array();
+  foreach ($result as $data) {
+
+    $view_link = l('View', 'admin/products/view/' . $data->pid);
+    $edit_link = l('Edit', 'admin/products/' . $data->pid);
+    $delete_link = l('Delete', 'admin/products/delete/' . $data->pid, array('attributes' => array('onclick' => 'return confirm("Are you sure you want to delete this product?");')));
+
+    $rows[] = array(
+      $data->pid,
+      $data->title,
+      theme('image_style', array('style_name' => 'thumbnail', 'path' => $data->image)),
+      $data->summary,
+      $data->type_name, // Product type name
+      $data->category_names, // Product categories
+      $data->owner_email,
+      format_date($data->expiry_date, 'custom', 'Y-m-d'),
+      $view_link,
+      $edit_link,
+      $delete_link,
+    );
+  }
+
+  // Add button for adding a new product
+  $add_link = l('Add Product', 'admin/products/add');
+  $output .= '<p>' . $add_link . '</p>';
+
+  // Generate table output
+  $output .= theme(
+    'table',
+    array(
+      'header' => $header,
+      'rows' => $rows,
+      'attributes' => array(),
+      'sticky' => TRUE,
+      'caption' => '',
+      'colgroups' => array(),
+      'empty' => t("No Records Found."),
+    )
+  );
+
+  // Add pager
+  $output .= theme('pager');
+
+  return $output;
+}
+
+
+/**
+ * Page callback: View Product details.
+ */
+function satish_itonics_product_view($pid) {
+  // Load product details from database
+  $product = satish_itonics_product_load($pid);
+
+  if (!$product) {
+    drupal_not_found(); // If product not found, return 404 page
+    return;
+  }
+
+  // Build product detail output
+  $output = '<div class="product-detail">';
+  $output .= '<h2>' . check_plain($product->title) . '</h2>';
+  $output .= '<div class="product-image">' . theme('image_style', array('style_name' => 'thumbnail', 'path' => $product->image)) . '</div>';
+  $output .= '<div class="product-summary">' . check_markup($product->summary, 'filtered_html') . '</div>';
+  $output .= '<div class="product-description">' . check_markup($product->description, 'filtered_html') . '</div>';
+  $output .= '<div class="product-type"><strong>Type:</strong> ' . satish_itonics_product_get_type($product->type) . '</div>';
+  $output .= '<div class="product-categories"><strong>Categories:</strong> ' . satish_itonics_product_get_categories($pid) . '</div>';
+  $output .= '<div class="product-owner-email"><strong>Owner Email:</strong> ' . check_plain($product->owner_email) . '</div>';
+  $output .= '<div class="product-expiry-date"><strong>Expiry Date:</strong> ' . format_date($product->expiry_date, 'custom', 'Y-m-d') . '</div>';
+  $output .= '</div>';
+
+  return $output;
+}
+
+
+/**
+ * Helper function to get product type name based on type ID.
+ */
+function satish_itonics_product_get_type($type_id) {
+  // Query the product_types table to fetch the name based on type ID.
+  $query = db_select('product_types', 'pt')
+    ->fields('pt', array('name'))
+    ->condition('pt.tid', $type_id)
+    ->execute()
+    ->fetchField();
+
+  return $query;
+}
+
+
+/**
+ * Helper function to fetch product categories.
+ */
+function satish_itonics_product_get_categories($pid)
+{
+  $categories = array();
+
+  $query = db_select('product_category_map', 'pcm')
+    ->fields('pcm', array('cid'))
+    ->condition('pcm.pid', $pid)
+    ->execute();
+
+  foreach ($query as $row) {
+    $category = db_select('product_category', 'pc')
+      ->fields('pc', array('name'))
+      ->condition('pc.cid', $row->cid)
+      ->execute()
+      ->fetchField();
+
+    if ($category) {
+      $categories[] = check_plain($category);
+    }
+  }
+
+  return implode(', ', $categories);
+}
+
+
+
+/**
+ * Delete a product by pid.
+ */
+function satish_itonics_product_delete($pid)
+{
+  // Ensure $pid is numeric and valid
+  if (!is_numeric($pid)) {
+    drupal_set_message(t('Invalid product ID.'), 'error');
+  } else {
+    // Fetch the product to get the image URI
+    $product = db_select('product', 'p')
+      ->fields('p', array('image'))
+      ->condition('p.pid', $pid)
+      ->execute()
+      ->fetchAssoc();
+
+    if ($product && !empty($product['image'])) {
+      // Fetch file object from file_managed table
+      $file = db_select('file_managed', 'fm')
+        ->fields('fm')
+        ->condition('fm.uri', $product['image'])
+        ->execute()
+        ->fetchObject();
+
+      if ($file) {
+        // Delete the file from the filesystem
+        $file_path = drupal_realpath($file->uri);
+        if ($file_path && file_exists($file_path)) {
+          file_delete($file);
+        }
+
+        // Delete the file record from file_managed table
+        db_delete('file_managed')
+          ->condition('fid', $file->fid)
+          ->execute();
+      }
+    }
+
+    // Delete product categories
+    db_delete('product_category_map')
+      ->condition('pid', $pid)
+      ->execute();
+
+    // Delete the product
+    db_delete('product')
+      ->condition('pid', $pid)
+      ->execute();
+
+    drupal_set_message(t('Product deleted successfully.'));
+  }
+
+  // Redirect to products list after deletion
+  drupal_goto('admin/products');
+}
+
+
+
+/**
+ * Helper function to fetch product categories for select options.
+ */
+function satish_itonics_product_categories_options()
+{
+  $options = array();
+
+  $query = db_select('product_category', 'c')
+    ->fields('c', array('cid', 'name'))
+    ->condition('c.status', 1)
+    ->execute();
+
+  foreach ($query as $row) {
+    $options[$row->cid] = $row->name;
+  }
+
+  return $options;
+}

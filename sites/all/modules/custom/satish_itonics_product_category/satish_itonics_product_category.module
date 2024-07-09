@@ -1,0 +1,262 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function satish_itonics_product_category_menu()
+{
+  $items = array();
+
+  // List all product categories
+  $items['admin/product-categories'] = array(
+    'title' => 'Product Categories',
+    'page callback' => 'satish_itonics_product_categories_data',
+    'access arguments' => array('access content for this module'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  // Add product category form
+  $items['admin/product-categories/add'] = array(
+    'title' => 'Add Product Category',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('satish_itonics_product_categories_form'),
+    'access arguments' => array('administer categories'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  // Delete product category callback
+  $items['admin/product-categories/delete/%'] = array(
+    'title' => 'Delete Category',
+    'page callback' => 'satish_itonics_product_categories_delete',
+    'page arguments' => array(3),
+    'access arguments' => array('administer categories'),
+    'type' => MENU_CALLBACK,
+  );
+
+  // Edit product category form
+  $items['admin/product-categories/%'] = array(
+    'title' => 'Edit Category',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('satish_itonics_product_categories_form', 2),
+    'access arguments' => array('administer categories'),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function satish_itonics_product_category_permission()
+{
+  return array(
+    'access content for this module' => array(
+      'title' => t('Access content for this module'),
+    ),
+    'administer categories' => array(
+      'title' => t('Administer categories'),
+    ),
+  );
+}
+
+/**
+ * Form callback: Add/Edit Product Category form.
+ */
+function satish_itonics_product_categories_form($form, &$form_state, $cid = NULL)
+{
+  $category = array();
+  if (isset($cid)) {
+    $category = satish_itonics_product_categories_load($cid);
+  }
+
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Name'),
+    '#required' => TRUE,
+    '#default_value' => isset($category->name) ? $category->name : '',
+    '#attributes' => array('class' => array('form-control'), 'style' => 'height: 40px;'),
+  );
+
+  $form['type_id'] = array(
+    '#type' => 'select',
+    '#title' => t('Product Type'),
+    '#options' => satish_itonics_product_types_options(),
+    '#default_value' => isset($category->type_id) ? $category->type_id : '',
+    '#empty_option' => t('- Select Product Type -'),
+    '#attributes' => array('class' => array('chosen-select')),
+    '#required' => TRUE,
+    '#chosen' => TRUE,
+
+
+  );
+
+  $form['status'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Active'),
+    '#default_value' => isset($category->status) ? $category->status : 1,
+    '#attributes' => array('class' => array('form-control')),
+  );
+
+  $form['cid'] = array(
+    '#type' => 'value',
+    '#value' => $cid,
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+    '#attributes' => array('class' => array('btn', 'btn-primary')),
+    '#prefix' => '<div class="form-actions">',
+    '#suffix' => '</div>',
+  );
+
+  return $form;
+}
+
+/**
+ * Submit callback for Product Category form.
+ */
+function satish_itonics_product_categories_form_submit($form, &$form_state)
+{
+  $cid = $form_state['values']['cid'];
+  $category = array(
+    'name' => $form_state['values']['name'],
+    'type_id' => $form_state['values']['type_id'],
+    'status' => $form_state['values']['status'],
+    'updated' => REQUEST_TIME,
+  );
+
+  if (isset($cid)) {
+    // Update existing category
+    db_update('product_category')
+      ->fields($category)
+      ->condition('cid', $cid)
+      ->execute();
+    drupal_set_message(t('Product Category updated successfully.'));
+  } else {
+    // Insert new category
+    $category['created'] = REQUEST_TIME;
+    db_insert('product_category')
+      ->fields($category)
+      ->execute();
+    drupal_set_message(t('Product Category added successfully.'));
+  }
+
+  // Redirect to categories list after saving
+  drupal_goto('admin/product-categories');
+}
+
+/**
+ * Load a Product category by cid.
+ */
+function satish_itonics_product_categories_load($cid)
+{
+  return db_select('product_category', 'c')
+    ->fields('c')
+    ->condition('cid', $cid)
+    ->execute()
+    ->fetchObject();
+}
+
+/**
+ * View callback - Displays product categories table.
+ */
+function satish_itonics_product_categories_data()
+{
+  // Set Title
+  drupal_set_title(t('Product Categories'));
+
+  $output = '';
+  $header = array(
+    array('data' => t('Id'), 'field' => 'cid'),
+    array('data' => t('Category Name'), 'field' => 'name'),
+    array('data' => t('Product Type'), 'field' => 'type_name'),
+    array('data' => t('Status'), 'field' => 'status'),
+    array('data' => t('Actions'), 'colspan' => 2),
+  );
+
+  $query = db_select('product_category', 'c')
+    ->fields('c', array('cid', 'name', 'type_id', 'status'))
+    ->extend('TableSort')
+    ->extend('PagerDefault')
+    ->limit(50);
+  $query->join('product_types', 'pt', 'c.type_id = pt.tid');
+  $query->addField('pt', 'name', 'product_name');
+  $query->orderByHeader($header);
+  $result = $query->execute();
+
+  $rows = array();
+  foreach ($result as $data) {
+    $status = $data->status == 1 ? 'Active' : 'Inactive';
+    $edit_link = l('Edit', 'admin/product-categories/' . $data->cid);
+    $delete_link = l('Delete', 'admin/product-categories/delete/' . $data->cid, array('attributes' => array('onclick' => 'return confirm("Are you sure you want to delete this category?");')));
+
+    $rows[] = array(
+      $data->cid,
+      $data->name,
+      $data->product_name, // Assuming 'name' is the product type name fetched from 'product_types' table
+      $status,
+      $edit_link,
+      $delete_link,
+    );
+  }
+
+  // Add button for adding a new product category
+  $add_link = l('Add Category', 'admin/product-categories/add');
+  $output .= '<p>' . $add_link . '</p>';
+
+  $output .= theme(
+    'table',
+    array(
+      'header' => $header,
+      'rows' => $rows,
+      'attributes' => array(),
+      'sticky' => TRUE,
+      'caption' => '',
+      'colgroups' => array(),
+      'empty' => t("No Records Found."),
+    )
+  ) . theme('pager');
+  return $output;
+}
+
+/**
+ * Delete a product category by cid.
+ */
+function satish_itonics_product_categories_delete($cid)
+{
+  // Ensure $cid is numeric and valid
+  if (!is_numeric($cid)) {
+    drupal_set_message(t('Invalid category ID.'), 'error');
+  } else {
+    // Delete the category
+    db_delete('product_category')
+      ->condition('cid', $cid)
+      ->execute();
+    drupal_set_message(t('Category deleted successfully.'));
+  }
+
+  // Redirect to categories list after deletion
+  drupal_goto('admin/product-categories');
+}
+
+/**
+ * Helper function to fetch product types for select options.
+ */
+function satish_itonics_product_types_options()
+{
+  $options = array();
+
+  $query = db_select('product_types', 'pt')
+    ->fields('pt', array('tid', 'name'))
+    ->condition('pt.status', 1)
+    ->orderBy('name', 'ASC')
+    ->execute();
+
+  foreach ($query as $row) {
+    $options[$row->tid] = $row->name;
+  }
+
+  return $options;
+}
