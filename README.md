@@ -1,3 +1,5 @@
+# Satish Itonics Product
+
 ## Product Types Management
 
 ### Overview
@@ -50,21 +52,6 @@ The ITONICS Products Module now includes functionality for managing product cate
 
 - **Drupal 7**: Requires Drupal 7 CMS framework.
 - **Choosen**: Utilizes Choosen for searchable select.
-
-
-## Features
-
-- **Product Management**: Create, edit, view, and delete products.
-- **Attributes**: Manage product attributes including title, image, summary, description, category, type, owner email, and expiry date.
-- **UI Enhancements**: Utilizes Drupal's Form API for creating rich user interfaces with textfields, select lists, datepickers, and rich text editing capabilities (TinyMCE).
-- **Image Handling**: Integrates Drupal's file upload system and image styles for managing product images.
-- **Data Storage**: Stores product information in a dedicated database table (satish_itonics_products).
-
-# ITONICS Products Module
-
-## Overview
-
-The ITONICS Products Module is a custom Drupal 7 module designed to manage product information within the ITONICS platform. This module provides CRUD (Create, Read, Update, Delete) functionalities for products
 
 ## Features
 
