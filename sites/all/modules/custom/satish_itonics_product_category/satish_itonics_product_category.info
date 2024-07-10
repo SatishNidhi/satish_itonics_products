@@ -3,5 +3,4 @@ description = "Module to manage category for products in ITONICS."
 package = Custom
 core = 7.x
 dependencies[] = views
-dependencies[] = views
 dependencies[] = chosen
