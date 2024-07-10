@@ -3,3 +3,7 @@ description = "Module to manage  products in ITONICS."
 package = Custom
 core = 7.x
 dependencies[] = views
+dependencies[] = chosen
+dependencies[] = tinymce
+dependencies[] = css_injector
+dependencies[] = datepicker
